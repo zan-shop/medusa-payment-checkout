@@ -23,11 +23,11 @@ jobs:
 
       - name: Install package dependencies
         run: npm ci
-        working-directory: ./payment-checkout
+
 
       - name: Build package
         run: npm run build
-        working-directory: ./payment-checkout
+
 
       - name: Publish to npm
         env:
@@ -35,4 +35,3 @@ jobs:
         run: |
           echo "Publishing package from payment-checkout folder..."
           npm publish --access public
-        working-directory: ./payment-checkout
