@@ -1,5 +1,5 @@
 {
-  "name": "@zan/medusa-payment-checkout",
+  "name": "@zan-shop/medusa-payment-checkout",
   "version": "1.0.0",
   "description": "Checkout.com payment provider for Medusa",
   "main": "dist/index.js",
@@ -19,7 +19,7 @@
     "payment",
     "checkout.com"
   ],
-  "author": "",
+  "author": "zan shop",
   "license": "MIT",
   "devDependencies": {
     "@medusajs/framework": "^2.0.0",
@@ -43,5 +43,8 @@
     "type": "git",
     "url": "git+https://github.com/zan-shop/medusa-payment-checkout.git"
   },
-  "homepage": "https://github.com/zan-shop/medusa-payment-checkout#readme"
+  "homepage": "https://github.com/zan-shop/medusa-payment-checkout#readme",
+  "bugs": {
+    "url": "https://github.com/zan-shop/medusa-payment-checkout/issues"
+  }
 }
