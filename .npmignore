@@ -3,8 +3,8 @@ __tests__/
 tests/
 .vscode/
 .github/
-node_modules/
 *.ts
+!**/*.d.ts
 *.map
 .DS_Store
 .env

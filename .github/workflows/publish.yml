@@ -3,9 +3,6 @@ name: Publish package to npm
 on:
   release:
     types: [published]
-  push:
-    tags:
-      - 'v*.*.*'
 
 jobs:
   publish:
@@ -24,14 +21,15 @@ jobs:
       - name: Install package dependencies
         run: npm ci
 
+      - name: Run tests
+        run: npm test
 
       - name: Build package
         run: npm run build
-
 
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "Publishing package from payment-checkout folder..."
+          echo "Publishing package from medusa-payment-checkout folder..."
           npm publish --access public
