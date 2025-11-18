@@ -1,0 +1,10 @@
+src/
+__tests__/
+tests/
+.vscode/
+.github/
+node_modules/
+*.ts
+*.map
+.DS_Store
+.env

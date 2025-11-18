@@ -1,0 +1,38 @@
+name: Publish package to npm
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install package dependencies
+        run: npm ci
+        working-directory: ./payment-checkout
+
+      - name: Build package
+        run: npm run build
+        working-directory: ./payment-checkout
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "Publishing package from payment-checkout folder..."
+          npm publish --access public
+        working-directory: ./payment-checkout
