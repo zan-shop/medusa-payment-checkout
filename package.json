@@ -1,6 +1,6 @@
 {
   "name": "@zan-shop/medusa-payment-checkout",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Checkout.com payment provider for Medusa",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
