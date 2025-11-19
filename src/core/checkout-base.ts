@@ -1,4 +1,5 @@
 import { Checkout } from "checkout-sdk-node"
+import { createHmac } from "crypto"
 import type {
   AuthorizePaymentInput,
   AuthorizePaymentOutput,
@@ -40,6 +41,7 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
   protected readonly options_: CheckoutOptions
   protected checkout_: Checkout
   protected container_: Record<string, unknown>
+  protected processedPaymentIds_: Set<string> = new Set()
 
   static validateOptions(options: CheckoutOptions): void {
     if (!isDefined(options.secretKey)) {
@@ -150,6 +152,7 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
         },
         amount,
         currency,
+        capture: false, // Authorization only - capture will be done separately by Medusa
         customer: {
           email: customer.email || (context as any)?.email,
           name: customer.name || (context as any)?.name,
@@ -159,12 +162,45 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
 
       const payment: any = await this.checkout_.payments.request(paymentRequest)
 
-      if (payment.approved) {
+      // Security: Verify payment amount matches
+      if (payment.amount !== amount) {
+        throw new MedusaError(
+          MedusaError.Types.PAYMENT_AUTHORIZATION_ERROR,
+          `Payment amount mismatch: expected ${amount}, got ${payment.amount}`
+        )
+      }
+
+      // Security: Verify currency matches
+      if (payment.currency?.toUpperCase() !== currency?.toUpperCase()) {
+        throw new MedusaError(
+          MedusaError.Types.PAYMENT_AUTHORIZATION_ERROR,
+          `Currency mismatch: expected ${currency}, got ${payment.currency}`
+        )
+      }
+
+      // Security: Check for idempotency - prevent duplicate processing
+      if (payment.id && this.processedPaymentIds_.has(payment.id)) {
+        throw new MedusaError(
+          MedusaError.Types.PAYMENT_AUTHORIZATION_ERROR,
+          `Payment ${payment.id} has already been processed`
+        )
+      }
+
+      // Security: Verify payment is actually approved and authorized
+      if (payment.approved && payment.status === "Authorized") {
+        // Mark as processed
+        if (payment.id) {
+          this.processedPaymentIds_.add(payment.id)
+        }
+
         return {
           status: PaymentSessionStatus.AUTHORIZED,
           data: {
             id: payment.id,
             status: payment.status,
+            amount: payment.amount,
+            currency: payment.currency,
+            approved: payment.approved,
           } as unknown as Record<string, unknown>,
         }
       }
@@ -214,23 +250,97 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     }
   }
 
-  async capturePayment({
-    data,
-  }: CapturePaymentInput): Promise<CapturePaymentOutput> {
+  async capturePayment(
+    input: CapturePaymentInput
+  ): Promise<CapturePaymentOutput> {
+    const { data } = input
+    const amount = (input as any).amount
+    const currency_code = (input as any).currency_code
+    
     try {
-      const id = data.id as string
-      const result: any = await this.checkout_.payments.capture(id, {
-        amount: (data as any).amount,
-      })
+      const id = (data as any)?.id as string
+      
+      if (!id) {
+        throw new Error("Missing payment id for capture")
+      }
+
+      let captureAmount: number
+      
+      if (amount !== undefined && amount !== null) {
+        const currency = currency_code || (data as any)?.currency || (data as any)?.currency_code
+        if (!currency) {
+          throw new Error("Currency is required to convert capture amount")
+        }
+        captureAmount = getSmallestUnit(amount, currency)
+      } else if ((data as any)?.amount !== undefined) {
+        captureAmount = (data as any).amount
+      } else {
+        throw new Error("Missing amount for capture")
+      }
+
+      if (!Number.isInteger(captureAmount) || captureAmount <= 0) {
+        throw new Error(
+          `Invalid capture amount: ${captureAmount}. Must be a positive integer in smallest currency unit.`
+        )
+      }
+
+      try {
+        const paymentStatus: any = await this.checkout_.payments.get(id)
+
+        if (paymentStatus.status === "Captured") {
+          return {
+            data: {
+              id: paymentStatus.id,
+              status: "Captured",
+            } as unknown as Record<string, unknown>,
+          }
+        }
+
+        if (paymentStatus.status !== "Authorized") {
+          throw new Error(
+            `Cannot capture payment with status: ${paymentStatus.status}. Payment must be in "Authorized" status to capture.`
+          )
+        }
+      } catch (statusError: any) {
+        if (statusError?.message?.includes("already captured") || statusError?.message?.includes("Captured")) {
+          return {
+            data: {
+              id: id,
+              status: "Captured",
+            } as unknown as Record<string, unknown>,
+          }
+        }
+      }
+
+      const captureRequest: any = { amount: captureAmount }
+      
+      if ((data as any)?.reference) {
+        captureRequest.reference = (data as any).reference
+      }
+
+      const result: any = await this.checkout_.payments.capture(id, captureRequest)
 
       return {
         data: {
-          id: result.action_id,
+          id: result.action_id ?? result.id,
           status: "Captured",
         } as unknown as Record<string, unknown>,
       }
     } catch (error: any) {
-      throw this.buildError("An error occurred in capturePayment", error)
+      const errorCodes = error?.body?.error_codes || error?.error_codes || []
+      if (errorCodes.includes('no_balance_remaining_to_capture')) {
+        return {
+          data: {
+            id: (data as any)?.id,
+            status: "Captured",
+          } as unknown as Record<string, unknown>,
+        }
+      }
+      
+      throw this.buildError(
+        `An error occurred in capturePayment (payment: ${(data as any)?.id})`,
+        error
+      )
     }
   }
 
@@ -308,38 +418,133 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     }
   }
 
+  /**
+   * Verify webhook signature using HMAC-SHA256
+   * @param payload - The raw webhook payload as string
+   * @param signature - The signature from Cko-Signature header
+   * @returns true if signature is valid
+   */
+  protected verifyWebhookSignature(
+    payload: string,
+    signature: string | undefined
+  ): boolean {
+    if (!signature) {
+      return false
+    }
+
+    try {
+      const hmac = createHmac("sha256", this.options_.webhookSecretKey)
+      hmac.update(payload)
+      const expectedSignature = hmac.digest("hex")
+
+      // Constant-time comparison to prevent timing attacks
+      return this.secureCompare(signature, expectedSignature)
+    } catch (error) {
+      console.error("Webhook signature verification failed:", error)
+      return false
+    }
+  }
+
+  /**
+   * Constant-time string comparison to prevent timing attacks
+   */
+  protected secureCompare(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+    }
+    return result === 0
+  }
+
   async getWebhookActionAndData(
     payload: ProviderWebhookPayload["payload"]
   ): Promise<WebhookActionResult> {
-    const { data } = payload
+    const { data, rawData, headers } = payload
+
+    // Security: Verify webhook signature
+    const signature = (headers as any)?.["cko-signature"] || (headers as any)?.["Cko-Signature"]
+    const payloadString = typeof rawData === "string" ? rawData : JSON.stringify(data)
+    
+    if (!this.verifyWebhookSignature(payloadString, signature)) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Invalid webhook signature. Request rejected for security."
+      )
+    }
 
     try {
       const eventType = data.type
       const eventData = data.data
       const currency = (eventData as any)?.currency
+      const paymentId = (eventData as any)?.id
+
+      // Security: Check idempotency - prevent duplicate webhook processing
+      if (paymentId && this.processedPaymentIds_.has(`webhook_${paymentId}_${eventType}`)) {
+        console.warn(`Webhook already processed: ${paymentId} - ${eventType}`)
+        return {
+          action: PaymentActions.NOT_SUPPORTED,
+          data: {
+            session_id: (eventData as any)?.metadata?.session_id,
+            amount: new BigNumber(0),
+          },
+        }
+      }
+
+      // Mark webhook as processed
+      if (paymentId) {
+        this.processedPaymentIds_.add(`webhook_${paymentId}_${eventType}`)
+      }
 
       switch (eventType) {
-        case "payment_approved":
+        case "payment_approved": {
+          const amount = (eventData as any)?.amount
+          const sessionId = (eventData as any)?.metadata?.session_id
+
+          // Security: Verify payment has valid amount
+          if (!amount || amount <= 0) {
+            throw new MedusaError(
+              MedusaError.Types.INVALID_DATA,
+              "Invalid payment amount in webhook"
+            )
+          }
+
           return {
             action: PaymentActions.AUTHORIZED as any,
             data: {
-              session_id: (eventData as any)?.metadata?.session_id,
+              session_id: sessionId,
               amount: new BigNumber(
-                getAmountFromSmallestUnit((eventData as any)?.amount, currency)
+                getAmountFromSmallestUnit(amount, currency)
               ),
             },
           }
+        }
 
-        case "payment_captured":
+        case "payment_captured": {
+          const amount = (eventData as any)?.amount
+          const sessionId = (eventData as any)?.metadata?.session_id
+
+          // Security: Verify payment has valid amount
+          if (!amount || amount <= 0) {
+            throw new MedusaError(
+              MedusaError.Types.INVALID_DATA,
+              "Invalid payment amount in webhook"
+            )
+          }
+
           return {
             action: "captured" as any,
             data: {
-              session_id: (eventData as any)?.metadata?.session_id,
+              session_id: sessionId,
               amount: new BigNumber(
-                getAmountFromSmallestUnit((eventData as any)?.amount, currency)
+                getAmountFromSmallestUnit(amount, currency)
               ),
             },
           }
+        }
 
         case "payment_declined":
         case "payment_canceled":
@@ -353,16 +558,28 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
             },
           }
 
-        case "payment_refunded":
+        case "payment_refunded": {
+          const amount = (eventData as any)?.amount
+          const sessionId = (eventData as any)?.metadata?.session_id
+
+          // Security: Verify refund has valid amount
+          if (!amount || amount <= 0) {
+            throw new MedusaError(
+              MedusaError.Types.INVALID_DATA,
+              "Invalid refund amount in webhook"
+            )
+          }
+
           return {
             action: PaymentActions.CANCELED,
             data: {
-              session_id: (eventData as any)?.metadata?.session_id,
+              session_id: sessionId,
               amount: new BigNumber(
-                getAmountFromSmallestUnit((eventData as any)?.amount, currency)
+                getAmountFromSmallestUnit(amount, currency)
               ),
             },
           }
+        }
 
         default:
           return {

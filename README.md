@@ -49,6 +49,7 @@ Create or update your `.env` file:
 CHECKOUT_PUBLIC_KEY="pk_test_your-public-key-here"
 CHECKOUT_SECRET_KEY="sk_test_your-secret-key-here"
 CHECKOUT_PROCESSING_CHANNEL_ID="pc_your-channel-id-here"
+CHECKOUT_WEBHOOK_SECRET_KEY="whsec_your-webhook-secret-key-here"
 
 ### 3. Register the provider
 
@@ -71,6 +72,7 @@ export default {
               publicKey: process.env.CHECKOUT_PUBLIC_KEY,
               secretKey: process.env.CHECKOUT_SECRET_KEY,
               processingChannelId: process.env.CHECKOUT_PROCESSING_CHANNEL_ID,
+              webhookSecretKey: process.env.CHECKOUT_WEBHOOK_SECRET_KEY,
             },
           },
         ],
