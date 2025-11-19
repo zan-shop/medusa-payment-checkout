@@ -24,11 +24,11 @@ KWD (Kuwaiti Dinar), BHD (Bahraini Dinar), JOD (Jordanian Dinar), OMR (Omani Ria
 ## Installation
 
 ```bash
-npm install @zan/medusa-payment-checkout
+npm install @zan-shop/medusa-payment-checkout
 # or
-yarn add @zan/medusa-payment-checkout
+yarn add @zan-shop/medusa-payment-checkout
 # or
-pnpm add @zan/medusa-payment-checkout
+pnpm add @zan-shop/medusa-payment-checkout
 ```
 
 ## Configuration
@@ -65,7 +65,7 @@ export default {
       options: {
         providers: [
           {
-            resolve: "@zan/medusa-payment-checkout",
+            resolve: "@zan-shop/medusa-payment-checkout",
             id: "checkout",
             options: {
               publicKey: process.env.CHECKOUT_PUBLIC_KEY,
