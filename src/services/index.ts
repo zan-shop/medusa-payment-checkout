@@ -1,1 +1,1 @@
-export { default as CheckoutProviderService } from "./checkout-provider.js"
+export { default as CheckoutProviderService } from "./checkout-provider"
