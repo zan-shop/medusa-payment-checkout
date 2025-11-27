@@ -1,5 +1,5 @@
 import { ModuleProvider, Modules } from "@medusajs/framework/utils"
-import { CheckoutProviderService } from "./services/index.js"
+import { CheckoutProviderService } from "./services/index"
 
 const services = [CheckoutProviderService]
 

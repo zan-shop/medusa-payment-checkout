@@ -1,5 +1,5 @@
-import CheckoutBase from "../core/checkout-base.js"
-import { PaymentProviderKeys } from "../types/index.js"
+import CheckoutBase from "../core/checkout-base"
+import { PaymentProviderKeys } from "../types/index"
 
 class CheckoutProviderService extends CheckoutBase {
   static identifier = PaymentProviderKeys.CHECKOUT

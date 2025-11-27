@@ -1,30 +1,34 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
-    "module": "ESNext",
     "lib": ["ES2021"],
+    "target": "ES2021",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "esModuleInterop": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-    "strict": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "experimentalDecorators": true,
+    "noUnusedLocals": true,
+    "module": "Node16",
+    "moduleResolution": "Node16",
     "emitDecoratorMetadata": true,
-    "allowSyntheticDefaultImports": true,
-    "allowImportingTsExtensions": false,
-    "noImplicitAny": false,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "noImplicitReturns": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "incremental": false,
     "paths": {
-      "@services/*": ["./src/services/*"],
+      "@models": ["./src/models"],
+      "@services": ["./src/services"],
+      "@repositories": ["./src/repositories"],
       "@types": ["./src/types"],
-      "@core": ["./src/core"]
+      "@utils": ["./src/utils"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  "include": ["./src"],
+  "exclude": ["./dist", "./node_modules"]
 }

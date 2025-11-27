@@ -20,3 +20,17 @@ export interface CheckoutOptions {
 export const PaymentProviderKeys = {
   CHECKOUT: "checkout",
 }
+
+export type CheckoutPaymentData = {
+  id?: string;
+  token?: string;
+  payment_id?: string;
+  status?: string;
+  redirect_url?: string;
+  session_id?: string;
+  amount?: number;
+  currency?: string;
+  customer_email?: string;
+  approved?: boolean;
+  _links?: any;
+};
