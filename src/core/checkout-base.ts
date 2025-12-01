@@ -76,7 +76,7 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
   async getPaymentStatus(
     input: GetPaymentStatusInput
   ): Promise<GetPaymentStatusOutput> {
-    const id = input?.data?.id as string
+    const id = input?.data?.payment_id as string
     
     if (!id) {
       throw this.buildError(
@@ -97,19 +97,46 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     data,
     context,
   }: InitiatePaymentInput): Promise<InitiatePaymentOutput> {
-    // Simulate a payment session creation because Checkout.com does not have this concept
-    // amount in smallest unit and currency in upepercase because checkout require that
-    const sessionData = {
-      amount: getSmallestUnit(amount, currency_code),
-      currency: currency_code.toUpperCase(),
-      status: "Pending",
-      customer_email: (context as any)?.email || (context as any)?.customer?.email,
+    // Workaround to save the payment ID created in FE using Checkout.com Flow
+    // return early if we already have a payment ID
+    if (data?.payment_id) {
+      return { id: data.payment_id as string } 
     }
 
+    
+    // Create a payment session for Checkout.com Flow
+    // Flow handles the actual payment processing in the browser
+    const sessionData: any = {
+      amount: getSmallestUnit(amount, currency_code),
+      currency: currency_code.toUpperCase(),
+      "3ds": { enabled: true },
+      // capture: false, // @TODO: Disable auto-capture after the mvp cuz mecur now forces autocapture.
+      reference: data?.session_id,
+      billing: {
+        address: {
+          country: (data as any)?.billing_address?.country_code?.toUpperCase(),
+        },
+      },
+      customer: { // Required to enable Remember Me (saved cards) feature
+        email: (data as any)?.customer?.email,
+      },
+      success_url: this.options_.successUrl,
+      failure_url: this.options_.failureUrl,
+      metadata: {
+        session_id: data?.session_id,
+      },
+    }
+
+    if (this.options_.processingChannelId) {
+      sessionData.processing_channel_id = this.options_.processingChannelId
+    }
+
+    const paymentSession = await this.checkout_.paymentSessions.request(sessionData)
+
     return {
-      id: crypto.randomUUID(), // Checkout doesn't have the concept of payment sessions, so we generate a UUID
+      id: paymentSession.id,
       ...(this.getStatus(
-        sessionData as unknown as CheckoutPaymentData
+        paymentSession as unknown as CheckoutPaymentData
       ) as unknown as Pick<InitiatePaymentOutput, "data" | "status">),
     }
   }
@@ -117,79 +144,25 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
   async authorizePayment(
     input: AuthorizePaymentInput
   ): Promise<AuthorizePaymentOutput> {
-    const { data, context } = input
-    const sessionData = data as any
-
-    const amount = sessionData.amount
-    const currency = sessionData.currency
-    const token = (context as any)?.token || sessionData.token
-
-    if (!amount || !currency || !token) {
-      throw new MedusaError(
-        MedusaError.Types.PAYMENT_AUTHORIZATION_ERROR,
-        "Missing required payment data, amount, currency, and token"
-      )
-    }
-
-    try {
-      const cartId = (context as any)?.cart_id
-      const sessionId = (data as any)?.id
-      const paymentRequest: any = {
-        source: { type: "token", token: token },
-        amount,
-        currency,
-        capture: false, // Authorization only - capture will be done separately by Medusa, Mercur automatically captures on authorization
-        reference: cartId || sessionId,
-        metadata: {
-          cart_id: cartId,
-          session_id: sessionId,
-        },
-      }
-
-      if (this.options_.processingChannelId) {
-        paymentRequest.processing_channel_id = this.options_.processingChannelId
-      }
-
-      const payment: any = await this.checkout_.payments.request(paymentRequest)
-
-      return this.getStatus(payment) as unknown as AuthorizePaymentOutput
-    } catch (error: any) {
-      if (error instanceof MedusaError) {
-        throw error
-      }
-
-      const errorMessage = error.body?.error_type || error.body?.message || error.message
-      throw new MedusaError(
-        MedusaError.Types.PAYMENT_AUTHORIZATION_ERROR,
-        `Checkout.com error: ${errorMessage}`
-      )
-    }
+    return this.getPaymentStatus(input)
   }
 
   async cancelPayment({
     data,
   }: CancelPaymentInput): Promise<CancelPaymentOutput> {
-    const id = data?.id as string
-    
-    if (!id) {
-      return { data }
-    }
-
-    try {
-      const payment = await this.checkout_.payments.void(id)
-      return { data: payment as unknown as Record<string, unknown> }
-    } catch (error: any) {
-      throw this.buildError("An error occurred in cancelPayment", error)
-    }
+    return { data: {} }
   }
 
   async capturePayment({
     data,
   }: CapturePaymentInput): Promise<CapturePaymentOutput> {
     const id = data?.id as string
+    let payment = data as CheckoutPaymentData
 
     try {
-      const payment = await this.checkout_.payments.capture(id)
+      if (payment?.status !== "Captured") {
+        payment = await this.checkout_.payments.capture(id)
+      }
       
       return { data: payment as unknown as Record<string, unknown> }
     } catch (error: any) {
