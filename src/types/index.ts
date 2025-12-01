@@ -8,13 +8,21 @@ export interface CheckoutOptions {
    */
   publicKey: string
   /**
+   * URL to redirect the customer to upon successful payment (for 3DS flows)
+   */
+  successUrl: string,
+  /**
+   * URL to redirect the customer to upon failed payment (for 3DS flows)
+   */
+  failureUrl: string,
+  /**
    * Processing channel ID from Checkout.com (required for some merchants)
    */
   processingChannelId?: string
   /**
    * Webhook secret key for signature verification
    */
-  webhookSecretKey?: string
+  webhookSecretKey?: string,
 }
 
 export const PaymentProviderKeys = {

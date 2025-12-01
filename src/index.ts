@@ -3,8 +3,8 @@ import { CheckoutProviderService } from "./services/index"
 
 const services = [CheckoutProviderService]
 
-export default ModuleProvider(Modules.PAYMENT, {
+const paymentModule: any = ModuleProvider(Modules.PAYMENT, {
   services,
 })
 
-export * from "./types/index.js"
+export default paymentModule
