@@ -10,11 +10,11 @@ export interface CheckoutOptions {
   /**
    * URL to redirect the customer to upon successful payment (for 3DS flows)
    */
-  successUrl: string,
+  successUrl: string
   /**
    * URL to redirect the customer to upon failed payment (for 3DS flows)
    */
-  failureUrl: string,
+  failureUrl: string
   /**
    * Processing channel ID from Checkout.com (required for some merchants)
    */
@@ -22,7 +22,7 @@ export interface CheckoutOptions {
   /**
    * Webhook secret key for signature verification
    */
-  webhookSecretKey?: string,
+  webhookSecretKey?: string
 }
 
 export const PaymentProviderKeys = {
