@@ -35,6 +35,7 @@ import {
   getSmallestUnit,
 } from "../utils/get-smallest-unit"
 import { verifyWebhookSignature } from "../utils/webhook-signature"
+import phone from "phone";
 
 abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
   protected readonly options_: CheckoutOptions
@@ -106,29 +107,39 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     
     // Create a payment session for Checkout.com Flow
     // Flow handles the actual payment processing in the browser
+    
+    const billingAddress = (data as any)?.billing_address
+    const billingAndShippingData: any = {
+      address: {
+        country: billingAddress?.country_code?.toUpperCase(),
+        city: billingAddress?.city,
+        address_line1: billingAddress?.address_1,
+        zip: billingAddress?.postal_code,
+      },
+    }
+    if (billingAddress?.phone && phone(billingAddress.phone).isValid) {
+      billingAndShippingData.phone = { number: phone(billingAddress.phone).phoneNumber }
+    }
+    
     const sessionData: any = {
       amount: getSmallestUnit(amount, currency_code),
       currency: currency_code.toUpperCase(),
       "3ds": { enabled: true },
       // capture: false, // @TODO: Disable auto-capture after the mvp cuz mecur now forces autocapture.
-      reference: data?.session_id,
-      billing: {
-        address: {
-          country: (data as any)?.billing_address?.country_code?.toUpperCase(),
-        },
-      },
+      reference: data?.cart_id,
+      billing: billingAndShippingData,
+      shipping: billingAndShippingData,
       customer: { // Required to enable Remember Me (saved cards) feature
+        name: `${(billingAddress?.first_name || "")} ${(billingAddress?.last_name || "")}`.trim(),
         email: (data as any)?.customer?.email,
+        ...(billingAndShippingData.phone?.number ? { phone: billingAndShippingData.phone } : {}),
       },
       success_url: this.options_.successUrl,
       failure_url: this.options_.failureUrl,
       metadata: {
         session_id: data?.session_id,
+        cart_id: data?.cart_id,
       },
-    }
-
-    if (this.options_.processingChannelId) {
-      sessionData.processing_channel_id = this.options_.processingChannelId
     }
 
     const paymentSession = await this.checkout_.paymentSessions.request(sessionData)
@@ -215,6 +226,9 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     }
   }
 
+  // only update payment session but not after capture
+  // can update (amount, reference, 3ds, address)
+  // no need for now.
   async updatePayment({
     data,
     context,
@@ -262,6 +276,7 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     const paymentId = (eventData as any)?.id
     const sessionId = (eventData as any)?.metadata?.session_id || (eventData as any)?.reference || paymentId || ""
 
+    // note: refund note supported as action type by medusa.
     switch (eventType) {
       case "payment_approved":
         return {
