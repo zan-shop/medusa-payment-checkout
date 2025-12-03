@@ -16,10 +16,6 @@ export interface CheckoutOptions {
    */
   failureUrl: string
   /**
-   * Processing channel ID from Checkout.com (required for some merchants)
-   */
-  processingChannelId?: string
-  /**
    * Webhook secret key for signature verification
    */
   webhookSecretKey?: string

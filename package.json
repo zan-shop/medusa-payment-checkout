@@ -31,7 +31,8 @@
   },
   "dependencies": {
     "@medusajs/framework": "^2.0.0",
-    "checkout-sdk-node": "^3.0.0"
+    "checkout-sdk-node": "^3.0.0",
+    "phone": "^3.1.67"
   },
   "peerDependencies": {
     "@medusajs/framework": "^2.0.0"
