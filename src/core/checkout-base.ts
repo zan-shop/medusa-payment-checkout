@@ -98,16 +98,8 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     data,
     context,
   }: InitiatePaymentInput): Promise<InitiatePaymentOutput> {
-    // Workaround to save the payment ID created in FE using Checkout.com Flow
-    // return early if we already have a payment ID
-    if (data?.payment_id) {
-      return { id: data.payment_id as string } 
-    }
-
-    
     // Create a payment session for Checkout.com Flow
     // Flow handles the actual payment processing in the browser
-    
     const billingAddress = (data as any)?.billing_address
     const billingAndShippingData: any = {
       address: {
@@ -273,8 +265,7 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     const eventData = data.data
     const currency = (eventData as any)?.currency
     const amount = (eventData as any)?.amount
-    const paymentId = (eventData as any)?.id
-    const sessionId = (eventData as any)?.metadata?.session_id || (eventData as any)?.reference || paymentId || ""
+    const sessionId = (eventData as any)?.metadata?.session_id
 
     // note: refund note supported as action type by medusa.
     switch (eventType) {
