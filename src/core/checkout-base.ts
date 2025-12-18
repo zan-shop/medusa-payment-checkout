@@ -270,14 +270,6 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     // note: refund note supported as action type by medusa.
     switch (eventType) {
       case "payment_approved":
-        return {
-          action: PaymentActions.AUTHORIZED,
-          data: {
-            id: sessionId,
-            amount: getAmountFromSmallestUnit((eventData as any)?.amount || 0, currency),
-          } as any,
-        }
-
       case "payment_captured": 
       case "payment_paid":
         return {
