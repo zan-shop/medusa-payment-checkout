@@ -104,9 +104,9 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     const billingAndShippingData: any = {
       address: {
         country: billingAddress?.country_code?.toUpperCase(),
-        city: billingAddress?.city,
-        address_line1: billingAddress?.address_1,
-        zip: billingAddress?.postal_code,
+        ...(billingAddress?.city ? { city: billingAddress.city } : {}),
+        ...(billingAddress?.address_1 ? { address_line1: billingAddress.address_1 } : {}),
+        ...(billingAddress?.postal_code ? { zip: billingAddress.postal_code } : {}),
       },
     }
     if (billingAddress?.phone && phone(billingAddress.phone).isValid) {
@@ -270,6 +270,14 @@ abstract class CheckoutBase extends AbstractPaymentProvider<CheckoutOptions> {
     // note: refund note supported as action type by medusa.
     switch (eventType) {
       case "payment_approved":
+        return {
+          action: PaymentActions.AUTHORIZED,
+          data: {
+            id: sessionId,
+            amount: getAmountFromSmallestUnit((eventData as any)?.amount || 0, currency),
+          } as any,
+        }
+
       case "payment_captured": 
       case "payment_paid":
         return {
