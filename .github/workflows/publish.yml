@@ -1,40 +1,54 @@
-name: Publish Package
+name: Release and Publish
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches:
+      - main
 
 permissions:
-  id-token: write  # Required for OIDC
-  contents: read
-  packages: write
+  id-token: write      # OIDC for npm Trusted Publishing
+  contents: write      # Push release commits and tags
+  issues: write        # Comment on released issues
+  pull-requests: write # Comment on released PRs
+  packages: write      # Publish to GitHub Packages
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Update npm
         run: npm install -g npm@latest
+
       - run: npm ci
       - run: npm run build --if-present
-      - name: Publish to npm
-        run: npm publish
+      - run: npm test -- --passWithNoTests
 
-      - name: Setup Node.js for GitHub Packages
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+      - name: Publish to npm
+        run: npm publish --access public
+        continue-on-error: true
+
+      - name: Setup Node for GitHub Packages
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
+          node-version: "20"
+          registry-url: "https://npm.pkg.github.com"
+
       - name: Publish to GitHub Packages
-        run: npm publish
+        run: npm publish --access public
+        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
